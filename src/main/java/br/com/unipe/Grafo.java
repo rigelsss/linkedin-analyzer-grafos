@@ -382,6 +382,7 @@ public class Grafo {
 
     // Dijkstra: encontra o caminho de menor custo (maior afinidade) entre dois vértices
     public ResultadoCaminho dijkstra(String nomeOrigem, String nomeDestino) {
+        // Esse record funciona como um par: vertice atual + custo acumulado ate ele.
         record Entrada(Vertice vertice, int custo) {}
 
         Vertice vOrigem = encontraVertice(nomeOrigem).orElseThrow(
@@ -389,14 +390,20 @@ public class Grafo {
         Vertice vDestino = encontraVertice(nomeDestino).orElseThrow(
                 () -> new IllegalArgumentException("Vértice " + nomeDestino + " não encontrado."));
 
+        // distancias guarda o melhor custo conhecido ate cada vertice.
         Map<Vertice, Integer> distancias = new HashMap<>();
+        // anteriores guarda por qual vertice chegamos no melhor caminho.
         Map<Vertice, Vertice> anteriores = new HashMap<>();
+        // visitados impede reprocessar um vertice cujo menor custo ja foi fechado.
         Set<Vertice> visitados = new HashSet<>();
+        // A fila de prioridade sempre entrega primeiro o vertice com menor custo acumulado.
         PriorityQueue<Entrada> fila = new PriorityQueue<>(Comparator.comparingInt(Entrada::custo));
 
+        // No inicio, todos os vertices sao considerados inalcançaveis.
         for (Vertice v : vertices) {
             distancias.put(v, Integer.MAX_VALUE);
         }
+        // A origem eh o unico ponto conhecido no inicio, com custo zero.
         distancias.put(vOrigem, 0);
         fila.add(new Entrada(vOrigem, 0));
 
@@ -404,38 +411,49 @@ public class Grafo {
             Entrada entrada = fila.poll();
             Vertice atual = entrada.vertice();
 
+            // Se esse vertice ja foi fechado antes, ignoramos essa entrada repetida da fila.
             if (visitados.contains(atual)) continue;
             visitados.add(atual);
 
+            // Se chegamos ao destino, podemos encerrar porque ele saiu da fila com o menor custo possivel.
             if (atual.equals(vDestino)) break;
 
+            // Agora tentamos melhorar a distancia de cada vizinho do vertice atual.
             for (Vertice vizinho : atual.getAdjacencias()) {
                 if (visitados.contains(vizinho)) continue;
 
+                // Se houver mais de uma aresta entre dois vertices, pegamos a de menor peso.
                 int peso = obtemArestasParaVizinho(atual, vizinho).stream()
                         .mapToInt(a -> a.getPeso() != null ? a.getPeso() : 1)
                         .min().orElse(1);
 
+                // Relaxamento: custo para chegar ao vizinho passando pelo vertice atual.
                 int novaDistancia = distancias.get(atual) + peso;
                 if (novaDistancia < distancias.get(vizinho)) {
+                    // Se achamos um caminho melhor, atualizamos o custo e registramos o predecessor.
                     distancias.put(vizinho, novaDistancia);
                     anteriores.put(vizinho, atual);
+                    // O vizinho volta para a fila com seu novo custo melhorado.
                     fila.add(new Entrada(vizinho, novaDistancia));
                 }
             }
         }
 
+        // Se o destino continuou com "infinito", significa que ele nao eh alcancavel.
         if (distancias.get(vDestino) == Integer.MAX_VALUE) {
             return new ResultadoCaminho(new ArrayList<>(), -1);
         }
 
+        // Reconstruimos o caminho voltando do destino ate a origem pelo mapa de anteriores.
         List<String> caminho = new ArrayList<>();
         Vertice atual = vDestino;
         while (atual != null) {
+            // Inserimos no inicio para o caminho final ja sair na ordem correta: origem -> destino.
             caminho.add(0, atual.getNome());
             atual = anteriores.get(atual);
         }
 
+        // O retorno entrega tanto o caminho encontrado quanto o custo total dele.
         return new ResultadoCaminho(caminho, distancias.get(vDestino));
     }
 
